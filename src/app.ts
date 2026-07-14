@@ -55,12 +55,9 @@ app.use('/api-docs', (req, res) => {
   res.redirect('/docs');
 });
 
-// Root API Welcome endpoint
+// Root API Welcome endpoint (Redirects to interactive Swagger documentation)
 app.get('/', (req, res) => {
-  res.json({
-    message: 'Welcome to the Delivery Buddy API!',
-    docs: `http://localhost:${ENV.PORT}/docs`,
-  });
+  res.redirect('/docs');
 });
 
 // Bind route version namespaces
