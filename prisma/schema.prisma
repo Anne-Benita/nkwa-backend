@@ -1,0 +1,184 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum TransportationType {
+  BICYCLE @map("bicycle")
+  CAR     @map("car")
+  TRUCK   @map("truck")
+}
+
+enum DriverStatus {
+  OFFLINE   @map("offline")
+  ON_SHIFT  @map("on_shift")
+  SUSPENDED @map("suspended")
+}
+
+enum ShiftStatus {
+  ACTIVE @map("active")
+  ENDED  @map("ended")
+}
+
+enum OrderStatus {
+  PENDING   @map("pending")
+  PICKED_UP @map("picked_up")
+  EN_ROUTE  @map("en_route")
+  ARRIVED   @map("arrived")
+  DELIVERED @map("delivered")
+  CANCELLED @map("cancelled")
+}
+
+enum PaymentMethod {
+  CREDIT_CARD @map("credit_card")
+  CASH        @map("cash")
+  WALLET      @map("wallet")
+}
+
+enum SenderType {
+  DRIVER   @map("driver")
+  CUSTOMER @map("customer")
+}
+
+enum TransactionType {
+  EARNING    @map("earning")
+  TIP        @map("tip")
+  WITHDRAWAL @map("withdrawal")
+}
+
+model Driver {
+  id                 String             @id @default(uuid()) @db.Uuid
+  workId             String             @unique @map("work_id") @db.VarChar(20)
+  fullName           String             @map("full_name") @db.VarChar(120)
+  email              String             @unique @db.VarChar(160)
+  passwordHash       String             @map("password_hash") @db.VarChar(255)
+  teamId             String?            @map("team_id") @db.Uuid
+  team               Team?              @relation(fields: [teamId], references: [id])
+  transportationType TransportationType @map("transportation_type")
+  vehicleNumber      String?            @map("vehicle_number") @db.VarChar(20)
+  level              Int                @default(1) @db.SmallInt
+  ratePercent        Float              @default(0.0) @map("rate_percent")
+  avatarUrl          String?            @map("avatar_url") @db.VarChar(255)
+  status             DriverStatus       @default(OFFLINE)
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+
+  shifts             Shift[]
+  orders             Order[]
+  transactions       Transaction[]
+  notifications      Notification[]
+
+  @@map("driver")
+}
+
+model Team {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @db.VarChar(80)
+  drivers   Driver[]
+
+  @@map("team")
+}
+
+model Shift {
+  id                  String      @id @default(uuid()) @db.Uuid
+  driverId            String      @map("driver_id") @db.Uuid
+  driver              Driver      @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  startedAt           DateTime    @default(now()) @map("started_at")
+  endedAt             DateTime?   @map("ended_at")
+  status              ShiftStatus @default(ACTIVE)
+  earningsTotal       Float       @default(0.0) @map("earnings_total")
+  tipsTotal           Float       @default(0.0) @map("tips_total")
+  deliveriesCompleted Int         @default(0) @map("deliveries_completed")
+  orders              Order[]
+
+  @@map("shift")
+}
+
+model Order {
+  id                 String        @id @default(uuid()) @db.Uuid
+  orderNumber        String        @unique @map("order_number") @db.VarChar(20)
+  driverId           String?       @map("driver_id") @db.Uuid
+  driver             Driver?       @relation(fields: [driverId], references: [id])
+  shiftId            String?       @map("shift_id") @db.Uuid
+  shift              Shift?        @relation(fields: [shiftId], references: [id])
+  status             OrderStatus   @default(PENDING)
+  pickupName         String        @map("pickup_name") @db.VarChar(120)
+  pickupAddress      String        @map("pickup_address") @db.VarChar(255)
+  customerName       String        @map("customer_name") @db.VarChar(120)
+  customerPhone      String        @map("customer_phone") @db.VarChar(20)
+  destinationAddress String        @map("destination_address") @db.VarChar(255)
+  distanceLeftKm     Float         @default(0.0) @map("distance_left_km")
+  paymentMethod      OrderStatusPayment @default(CREDIT_CARD) @map("payment_method") // Match enum or set string, we'll map below
+  itemsTotal         Float         @default(0.0) @map("items_total")
+  driverEarning      Float         @default(0.0) @map("driver_earning")
+  driverTip          Float         @default(0.0) @map("driver_tip")
+  createdAt          DateTime      @default(now()) @map("created_at")
+  deliveredAt        DateTime?     @map("delivered_at")
+
+  items              OrderItem[]
+  messages           Message[]
+  transactions       Transaction[]
+
+  @@map("order")
+}
+
+// Rename map enum to avoid collision with standard schemas if required, or keep PaymentMethod
+enum OrderStatusPayment {
+  CREDIT_CARD @map("credit_card")
+  CASH        @map("cash")
+  WALLET      @map("wallet")
+}
+
+model OrderItem {
+  id          String   @id @default(uuid()) @db.Uuid
+  orderId     String   @map("order_id") @db.Uuid
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  name        String   @db.VarChar(120)
+  description String?  @db.VarChar(255)
+  quantity    Int      @default(1) @db.SmallInt
+  unitPrice   Float    @map("unit_price")
+
+  @@map("order_item")
+}
+
+model Message {
+  id         String     @id @default(uuid()) @db.Uuid
+  orderId    String     @map("order_id") @db.Uuid
+  order      Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  senderType SenderType @map("sender_type")
+  senderId   String?    @map("sender_id") @db.Uuid
+  body       String     @db.Text
+  sentAt     DateTime   @default(now()) @map("sent_at")
+  seenAt     DateTime?  @map("seen_at")
+
+  @@map("message")
+}
+
+model Transaction {
+  id           String          @id @default(uuid()) @db.Uuid
+  driverId     String          @map("driver_id") @db.Uuid
+  driver       Driver          @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  orderId      String?         @map("order_id") @db.Uuid
+  order        Order?          @relation(fields: [orderId], references: [id])
+  type         TransactionType
+  amount       Float
+  balanceAfter Float           @map("balance_after")
+  createdAt    DateTime        @default(now()) @map("created_at")
+
+  @@map("transaction")
+}
+
+model Notification {
+  id        String    @id @default(uuid()) @db.Uuid
+  driverId  String    @map("driver_id") @db.Uuid
+  driver    Driver    @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  title     String    @db.VarChar(120)
+  body      String    @db.VarChar(255)
+  readAt    DateTime? @map("read_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@map("notification")
+}
