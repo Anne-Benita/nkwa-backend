@@ -28,6 +28,10 @@ const swaggerOptions = {
     },
     servers: [
       {
+        url: '/v1',
+        description: 'Current Host (Dynamic)',
+      },
+      {
         url: `http://localhost:${ENV.PORT}/v1`,
         description: 'Local Development Server',
       },
